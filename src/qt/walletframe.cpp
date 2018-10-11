@@ -1,14 +1,12 @@
-// Copyright (c) 2011-2018 The Bitcoin Core developers
+// Copyright (c) 2011-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <qt/walletframe.h>
-#include <qt/walletmodel.h>
+#include "walletframe.h"
 
-#include <qt/bitcoingui.h>
-#include <qt/walletview.h>
+#include "bitcoingui.h"
+#include "walletview.h"
 
-#include <cassert>
 #include <cstdio>
 
 #include <QHBoxLayout>
@@ -40,16 +38,10 @@ void WalletFrame::setClientModel(ClientModel *_clientModel)
     this->clientModel = _clientModel;
 }
 
-bool WalletFrame::addWallet(WalletModel *walletModel)
+bool WalletFrame::addWallet(const QString& name, WalletModel *walletModel)
 {
-    if (!gui || !clientModel || !walletModel) {
+    if (!gui || !clientModel || !walletModel || mapWalletViews.count(name) > 0)
         return false;
-    }
-
-    const QString name = walletModel->getWalletName();
-    if (mapWalletViews.count(name) > 0) {
-        return false;
-    }
 
     WalletView *walletView = new WalletView(platformStyle, this);
     walletView->setBitcoinGUI(gui);
@@ -57,22 +49,15 @@ bool WalletFrame::addWallet(WalletModel *walletModel)
     walletView->setWalletModel(walletModel);
     walletView->showOutOfSyncWarning(bOutOfSync);
 
-    WalletView* current_wallet_view = currentWalletView();
-    if (current_wallet_view) {
-        walletView->setCurrentIndex(current_wallet_view->currentIndex());
-    } else {
-        walletView->gotoOverviewPage();
-    }
-
+     /* TODO we should goto the currently selected page once dynamically adding wallets is supported */
+    walletView->gotoOverviewPage();
     walletStack->addWidget(walletView);
     mapWalletViews[name] = walletView;
 
     // Ensure a walletView is able to show the main window
-    connect(walletView, &WalletView::showNormalIfMinimized, [this]{
-      gui->showNormalIfMinimized();
-    });
+    connect(walletView, SIGNAL(showNormalIfMinimized()), gui, SLOT(showNormalIfMinimized()));
 
-    connect(walletView, &WalletView::outOfSyncWarningClicked, this, &WalletFrame::outOfSyncWarningClicked);
+    connect(walletView, SIGNAL(outOfSyncWarningClicked()), this, SLOT(outOfSyncWarningClicked()));
 
     return true;
 }
@@ -84,7 +69,6 @@ bool WalletFrame::setCurrentWallet(const QString& name)
 
     WalletView *walletView = mapWalletViews.value(name);
     walletStack->setCurrentWidget(walletView);
-    assert(walletView);
     walletView->updateEncryptionStatus();
     return true;
 }
@@ -96,7 +80,6 @@ bool WalletFrame::removeWallet(const QString &name)
 
     WalletView *walletView = mapWalletViews.take(name);
     walletStack->removeWidget(walletView);
-    delete walletView;
     return true;
 }
 
